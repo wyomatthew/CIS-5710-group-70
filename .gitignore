@@ -39,3 +39,4 @@ sim.wdb
 *.vcd
 output/
 *system/
+*.zip
