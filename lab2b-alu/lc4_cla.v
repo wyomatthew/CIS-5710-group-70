@@ -15,25 +15,25 @@ module gp1(input wire a, b,
    assign p = a | b;
 endmodule
 
-/**
- * Computes aggregate generate/propagate signals over a 4-bit window.
- * @param gin incoming generate signals 
- * @param pin incoming propagate signals
- * @param cin the incoming carry
- * @param gout whether these 4 bits collectively generate a carry (ignoring cin)
- * @param pout whether these 4 bits collectively would propagate an incoming carry (ignoring cin)
- * @param cout the carry outs for the low-order 3 bits
- */
-module gp4(input wire [3:0] gin, pin,
-           input wire cin,
-           output wire gout, pout,
-           output wire [2:0] cout);
-   assign cout[0] = gin[0] | (cin & pin[0]);
-   assign cout[1] = gin[1] | (pin[1] & gin[0]) | (cin & pin[0] & pin[1]);
-   assign cout[2] = gin[2] | (pin[2] & gin[1]) | (pin[2] & pin[1] & gin[0]) | (cin & pin[0] & pin[1] & pin[2]);
-   assign gout = gin[3] | (pin[3] & gin[2]) | (pin[3] & pin[2] & gin[1]) | (pin[3] & pin[2] & pin[1] & gin[0]);
-   assign pout = pin[0] & pin[1] & pin[2] & pin[3];
-endmodule
+// /**
+//  * Computes aggregate generate/propagate signals over a 4-bit window.
+//  * @param gin incoming generate signals 
+//  * @param pin incoming propagate signals
+//  * @param cin the incoming carry
+//  * @param gout whether these 4 bits collectively generate a carry (ignoring cin)
+//  * @param pout whether these 4 bits collectively would propagate an incoming carry (ignoring cin)
+//  * @param cout the carry outs for the low-order 3 bits
+//  */
+// module gp4(input wire [3:0] gin, pin,
+//            input wire cin,
+//            output wire gout, pout,
+//            output wire [2:0] cout);
+//    assign cout[0] = gin[0] | (cin & pin[0]);
+//    assign cout[1] = gin[1] | (pin[1] & gin[0]) | (cin & pin[0] & pin[1]);
+//    assign cout[2] = gin[2] | (pin[2] & gin[1]) | (pin[2] & pin[1] & gin[0]) | (cin & pin[0] & pin[1] & pin[2]);
+//    assign gout = gin[3] | (pin[3] & gin[2]) | (pin[3] & pin[2] & gin[1]) | (pin[3] & pin[2] & pin[1] & gin[0]);
+//    assign pout = pin[0] & pin[1] & pin[2] & pin[3];
+// endmodule
 
 /**
  * 16-bit Carry-Lookahead Adder
@@ -116,5 +116,55 @@ module gpn
    input wire  cin,
    output wire gout, pout,
    output wire [N-2:0] cout);
- 
+  
+  genvar i;
+  for (i = 0; i < N; i = i + 1) begin
+    // Create wire array to OR over
+    wire [i+1:0] or_vec;
+
+    genvar j;
+    for (j = 0; j < i + 2; j = j + 1) begin
+      // Create wire array to AND over
+      wire [j:0] and_vec;
+
+      genvar k;
+      for (k = 0; k < j + 1; k = k + 1) begin
+        if (k == 0) begin
+          if (j == i + 1) begin
+            assign and_vec[0] = cin;
+          end else begin
+            assign and_vec[0] = gin[i - j];
+          end
+        end else begin 
+          assign and_vec[k] = pin[i - (j - k)];
+        end
+      end
+      assign or_vec[j] = &and_vec;
+    end
+
+    if (i == (N - 1)) begin
+      assign gout = |or_vec[i:0];
+    end else begin
+      assign cout[i] = |or_vec;
+    end
+  end
+
+  assign pout = &pin;
+endmodule
+
+/**
+ * Computes aggregate generate/propagate signals over a 4-bit window.
+ * @param gin incoming generate signals 
+ * @param pin incoming propagate signals
+ * @param cin the incoming carry
+ * @param gout whether these 4 bits collectively generate a carry (ignoring cin)
+ * @param pout whether these 4 bits collectively would propagate an incoming carry (ignoring cin)
+ * @param cout the carry outs for the low-order 3 bits
+ */
+module gp4(input wire [3:0] gin, pin,
+           input wire cin,
+           output wire gout, pout,
+           output wire [2:0] cout);
+  gpn gpn(.gin(gin), .pin(pin), .cin(cin), .gout(gout), .pout(pout), .cout(cout));
+  defparam gpn.N = 4;
 endmodule
