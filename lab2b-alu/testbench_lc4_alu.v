@@ -19,7 +19,7 @@ module test_alu;
    `include "print_points.v"
 
    // debugging state variables
-   integer  aluInFile, gpInFile, outputFile, errors, tests, lineno, claTests, randomSeed;
+   integer  immInFile, aluInFile, gpInFile, outputFile, errors, tests, lineno, claTests, randomSeed;
 
    // inputs
    reg [3:0]   gin, pin;
@@ -27,16 +27,19 @@ module test_alu;
    reg [15:0]  ain, bin, insn, pc, r1data, r2data;
    
    // module outputs
+   wire [15:0] actualImmOut;
    wire        actualGout, actualPout;
    wire [2:0]  actualCout;
    wire [15:0] actualSum, actualALUResult;
 
    // file outputs
+   reg [15:0]  expectedImmOut;
    reg         expectedGout, expectedPout;
    reg [2:0]   expectedCout;
    reg [15:0]  expectedSum, expectedALUResult;
    
    // instantiate the Units Under Test (UUTs)
+   imm_decider imm_dec(.i_insn(insn), .immx(actualImmOut));
    gp4 gp(.gin(gin), .pin(pin), .cin(cin), .gout(actualGout), .pout(actualPout), .cout(actualCout));
    cla16 cla (.a(ain), .b(bin), .cin(cin), .sum(actualSum));
    lc4_alu alu (.i_insn(insn), .i_pc(pc), .i_r1data(r1data), .i_r2data(r2data), .o_result(actualALUResult));
@@ -61,6 +64,11 @@ module test_alu;
       tests = 0;
       
       // open the test input traces
+      immInFile = $fopen("imm_test_vectors.txt", "r");
+      if (immInFile == `NULL) begin
+         $display("Error opening file");
+         $finish;
+      end
       aluInFile = $fopen("alu_test_vectors.txt", "r");
       if (aluInFile == `NULL) begin
          $display("Error opening file");
@@ -85,6 +93,34 @@ module test_alu;
       // wait for global reset to finish
       #100;
       #2;
+
+      // ******************
+      // ** IMMX TESTING **
+      // ******************
+      insn = 16'b0100100001000101;
+      while (2 == $fscanf(immInFile, "%b %b\n", insn, expectedImmOut)) begin
+         #2;
+         tests = tests + 1;
+         lineno = lineno + 1;
+
+         if (actualImmOut !== expectedImmOut) begin
+            errors = errors+1;
+            if (errors < `MAX_ERRORS_TO_DISPLAY) begin
+               $write("[imm] error at line %04d: ",    lineno);
+               $write("insn:%b ", insn);
+               $write("produced immx:%b ", actualImmOut);
+               $write("instead of immx:%b ", expectedImmOut);
+               $display("");
+            end
+            if (`EXIT_AFTER_FIRST_ERROR) begin
+               $display("Exiting after first error..."); 
+               $finish;
+            end
+         end
+
+      end
+      
+
 
       // ******************
       // *** GP TESTING ***
