@@ -24,8 +24,37 @@ module lc4_regfile #(parameter n = 16)
     input  wire         i_rd_we    // write enable
     );
 
-   /***********************
-    * TODO YOUR CODE HERE *
-    ***********************/
+    wire [n-1:0] o_reg [7:0];
+
+    genvar i;
+    for (i = 0; i < 8; i = i + 1) begin
+        Nbit_reg
+            #(.n(n), .r(0))
+        my_reg (
+            .we(i_rd == i ? i_rd_we : 0),
+            .in(i_wdata),
+            .out(o_reg[i]),
+            .clk(clk),
+            .gwe(gwe),
+            .rst(rst)
+        );
+    end
+
+    assign o_rs_data = i_rs == 0 ? o_reg[0] :
+                       i_rs == 1 ? o_reg[1] :
+                       i_rs == 2 ? o_reg[2] :
+                       i_rs == 3 ? o_reg[3] :
+                       i_rs == 4 ? o_reg[4] :
+                       i_rs == 5 ? o_reg[5] :
+                       i_rs == 6 ? o_reg[6] :
+                                   o_reg[7];
+    assign o_rt_data = i_rt == 0 ? o_reg[0] :
+                       i_rt == 1 ? o_reg[1] :
+                       i_rt == 2 ? o_reg[2] :
+                       i_rt == 3 ? o_reg[3] :
+                       i_rt == 4 ? o_reg[4] :
+                       i_rt == 5 ? o_reg[5] :
+                       i_rt == 6 ? o_reg[6] :
+                                   o_reg[7];
 
 endmodule
