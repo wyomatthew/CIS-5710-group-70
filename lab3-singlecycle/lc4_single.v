@@ -67,8 +67,32 @@ module lc4_processor
    /*******************************
     * TODO: INSERT YOUR CODE HERE *
     *******************************/
+    wire [2:0] r1sel, r2sel, wsel, o_nzp;
+    wire r1re, r2re, regfile_we, nzp_we, select_pc_plus_one, is_load, is_store,
+      is_branch, is_control_insn, take_branch;
+   lc4_decoder decoder(.insn(i_cur_insn), .r1sel(r1sel), .r2sel(r2sel), .wsel(wsel),
+      .r1re(r1re), .r2re(r2re), .regfile_we(regfile_we), .nzp_we(nzp_we),
+      .select_pc_plus_one(select_pc_plus_one), .is_load(is_load), .is_store(is_store),
+      .is_branch(is_branch), .is_control_insn);
 
+   wire [15:0] i_pc1, wdata;
+   cla16 incrementer(.a(o_cur_pc), .b(16'b0), .cin(1'b1), .sum(i_pc1));
 
+   wire [15:0] o_rs_data, o_rt_data;
+   lc4_regfile #(.n(16)) regfile(.clk(clk), .gwe(gwe), .rst(rst), .i_rs(r1sel),
+      .i_rt(r2sel), .i_rd(wsel), .i_rd_we(regfile_we), .i_wdata(wdata),
+      .o_rs_data(o_rs_data), .o_rt_data(o_rt_data));
+
+   lc4_branch_controller br_controller(.insn(i_cur_insn),
+      .is_control_insn(is_control_insn), .is_branch(is_branch), .o_nzp(o_nzp),
+      .take_branch(take_branch));
+   
+   lc4_data_controller data_controller(.r1data(o_rs_data), .r2data(o_rt_data), .insn(i_cur_insn), 
+      .i_pc1(i_pc1), .dmem_load(i_cur_dmem_data), .is_load(is_load), .take_branch(take_branch), 
+      .select_pc_plus_one(select_pc_plus_one), .wdata(wdata), .o_pc(o_cur_pc), .dmem_addr(o_dmem_addr), 
+      .dmem_store(o_dmem_towrite));
+
+   lc4_nzp_controller nzp_controller(.clk(clk), .gwe(gwe), .rst(rst), .wdata(wdata), .nzp_we(nzp_we), .o_nzp(o_nzp));
 
    /* Add $display(...) calls in the always block below to
     * print out debug information at the end of every cycle.
