@@ -14,7 +14,7 @@ module lc4_nzp_controller(input wire        clk,
     wire [2:0] i_nzp;
     Nbit_reg #(.n(3), .r(0)) nzp_reg(.clk(clk), .gwe(gwe), .rst(rst), .we(nzp_we), .out(o_nzp), .in(i_nzp));
 
-    assign i_nzp = wdata[15] ? 1'b100 :
-                   |wdata    ? 1'b001 :
-                               1'b010 ;
+    assign i_nzp = wdata[15] ? 3'b100 :
+                   |wdata    ? 3'b001 :
+                               3'b010 ;
 endmodule
