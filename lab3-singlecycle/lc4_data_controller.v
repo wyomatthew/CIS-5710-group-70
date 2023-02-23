@@ -21,9 +21,12 @@ module lc4_data_controller(input wire [15:0] r1data,
     lc4_alu alu(.i_insn(insn), .i_pc(i_pc1), .i_r1data(r1data), .i_r2data(r2data), .o_result(o_alu));
 
     // Determine branch
-    assign o_pc = take_branch ? o_alu : o_pc;
+    wire [15:0] pc_inc;
+    cla16 incrementer(.a(i_pc1), .b(16'b0), .cin(1'b1), .sum(pc_inc));
 
-    wire [15:0] o_reg = select_pc_plus_one ? i_pc1 : o_alu;
+    assign o_pc = take_branch ? o_alu : pc_inc;
+
+    wire [15:0] o_reg = select_pc_plus_one ? pc_inc : o_alu;
     assign dmem_addr = o_reg;
     assign dmem_store = r2data;
 

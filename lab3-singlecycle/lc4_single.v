@@ -75,8 +75,9 @@ module lc4_processor
       .select_pc_plus_one(select_pc_plus_one), .is_load(is_load), .is_store(is_store),
       .is_branch(is_branch), .is_control_insn);
 
-   wire [15:0] i_pc1, wdata;
-   cla16 incrementer(.a(o_cur_pc), .b(16'b0), .cin(1'b1), .sum(i_pc1));
+   wire [15:0] wdata;
+   // wire [15:0] i_pc1;
+   // cla16 incrementer(.a(pc), .b(16'b1), .cin(1'b0), .sum(i_pc1));
 
    wire [15:0] o_rs_data, o_rt_data;
    lc4_regfile #(.n(16)) regfile(.clk(clk), .gwe(gwe), .rst(rst), .i_rs(r1sel),
@@ -88,11 +89,31 @@ module lc4_processor
       .take_branch(take_branch));
    
    lc4_data_controller data_controller(.r1data(o_rs_data), .r2data(o_rt_data), .insn(i_cur_insn), 
-      .i_pc1(i_pc1), .dmem_load(i_cur_dmem_data), .is_load(is_load), .take_branch(take_branch), 
-      .select_pc_plus_one(select_pc_plus_one), .wdata(wdata), .o_pc(o_cur_pc), .dmem_addr(o_dmem_addr), 
+      .i_pc1(pc), .dmem_load(i_cur_dmem_data), .is_load(is_load), .take_branch(take_branch), 
+      .select_pc_plus_one(select_pc_plus_one), .wdata(wdata), .o_pc(next_pc), .dmem_addr(o_dmem_addr), 
       .dmem_store(o_dmem_towrite));
 
-   lc4_nzp_controller nzp_controller(.clk(clk), .gwe(gwe), .rst(rst), .wdata(wdata), .nzp_we(nzp_we), .o_nzp(o_nzp));
+   lc4_nzp_controller nzp_controller(.clk(clk), .gwe(gwe), .rst(rst), .wdata(wdata), .nzp_we(nzp_we), .o_nzp(o_nzp), .i_nzp(test_nzp_new_bits));
+
+   // Wire to test outputs
+
+   assign test_cur_pc = pc;
+   assign o_cur_pc = pc;
+   // assign next_pc = o_cur_pc;
+   assign test_cur_insn = i_cur_insn;
+   assign test_regfile_we = regfile_we;
+   assign test_regfile_wsel = wsel;
+   assign test_regfile_data = wdata; // regfile_in
+   assign test_nzp_we = nzp_we;
+   // assign test_nzp_new_bits = o_nzp;
+   assign test_dmem_we = is_store;
+   assign test_dmem_addr = is_store | is_load ? o_dmem_addr    : 16'b0;
+   // assign test_dmem_data = is_store | is_load ? o_dmem_towrite : 16'b0;
+   assign test_dmem_data = is_store ? o_dmem_towrite :
+                           is_load  ? i_cur_dmem_data :
+                           16'b0;
+   // assign test_dmem_addr = o_dmem_addr;
+   // assign test_dmem_data = o_dmem_towrite;
 
    /* Add $display(...) calls in the always block below to
     * print out debug information at the end of every cycle.
@@ -110,6 +131,8 @@ module lc4_processor
     */
 `ifndef NDEBUG
    always @(posedge gwe) begin
+      $display("pc: %h\ninsn: %b\ni_cur_dmem_data: %h\nwdata: %h\nmem_data: %h\ndmem_addr: %h\n", pc, i_cur_insn, i_cur_dmem_data, wdata, o_dmem_towrite, o_dmem_addr);
+      // $display("pc: %h\ni_pc1: %h\nnext_pc: %h\n", pc, i_pc1, next_pc);
       // $display("%d %h %h %h %h %h", $time, f_pc, d_pc, e_pc, m_pc, test_cur_pc);
       // if (o_dmem_we)
       //   $display("%d STORE %h <= %h", $time, o_dmem_addr, o_dmem_towrite);

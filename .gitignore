@@ -40,3 +40,4 @@ sim.wdb
 output/
 *system/
 *.zip
+*.output
