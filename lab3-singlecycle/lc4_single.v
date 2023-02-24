@@ -10,6 +10,62 @@
 // disable implicit wire declaration
 `default_nettype none
 
+module lc4_branch_controller(input wire [15:0] insn,
+                             input wire [2:0]  o_nzp,
+                             input wire        is_branch,
+                             input wire        is_control_insn,
+                             output wire take_branch);
+    wire [2:0] insn_br = insn[11:9];
+    wire nzp_branch_works = |(insn_br & o_nzp);
+    
+    assign take_branch = (is_branch & nzp_branch_works) | is_control_insn;
+endmodule
+
+module lc4_data_controller(input wire [15:0] r1data,
+                           input wire [15:0] r2data,
+                           input wire [15:0] insn,
+                           input wire [15:0] i_pc1,
+                           input wire [15:0] dmem_load,
+                           input wire        is_load,
+                           input wire        take_branch,
+                           input wire        select_pc_plus_one,
+                           output wire [15:0] wdata,
+                           output wire [15:0] o_pc,
+                           output wire [15:0] dmem_addr,
+                           output wire [15:0] dmem_store);
+    wire [15:0] o_alu;
+    lc4_alu alu(.i_insn(insn), .i_pc(i_pc1), .i_r1data(r1data), .i_r2data(r2data), .o_result(o_alu));
+
+    // Determine branch
+    wire [15:0] pc_inc;
+    cla16 incrementer(.a(i_pc1), .b(16'b0), .cin(1'b1), .sum(pc_inc));
+
+    assign o_pc = take_branch ? o_alu : pc_inc;
+
+    wire [15:0] o_reg = select_pc_plus_one ? pc_inc : o_alu;
+    assign dmem_addr = o_reg;
+    assign dmem_store = r2data;
+
+    assign wdata = is_load ? dmem_load : o_reg;
+endmodule
+
+module lc4_nzp_controller(input wire        clk,
+                          input wire        gwe,
+                          input wire        rst,
+                          input wire [15:0] wdata,
+                          input wire        nzp_we,
+                          output wire [2:0] o_nzp,
+                          output wire [2:0] i_nzp);
+    Nbit_reg #(.n(3), .r(0)) nzp_reg(.clk(clk), .gwe(gwe), .rst(rst), .we(nzp_we), .out(o_nzp), .in(i_nzp));
+
+    assign i_nzp = $signed(wdata) <  0 ? 3'b100 :
+                   $signed(wdata) == 0 ? 3'b010 :
+                                         3'b001 ;
+//     assign i_nzp = wdata[15] ? 3'b100 :
+//                    |wdata    ? 3'b001 :
+//                                3'b010 ;
+endmodule
+
 module lc4_processor
    (input  wire        clk,                // Main clock
     input  wire        rst,                // Global reset
