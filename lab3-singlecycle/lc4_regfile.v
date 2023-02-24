@@ -31,7 +31,7 @@ module lc4_regfile #(parameter n = 16)
         Nbit_reg
             #(.n(n), .r(0))
         my_reg (
-            .we(i_rd == i ? i_rd_we : 0),
+            .we(i_rd == i ? i_rd_we : 1'b0),
             .in(i_wdata),
             .out(o_reg[i]),
             .clk(clk),

@@ -131,7 +131,7 @@ module lc4_processor
     */
 `ifndef NDEBUG
    always @(posedge gwe) begin
-      $display("pc: %h\ninsn: %b\ni_cur_dmem_data: %h\nwdata: %h\nmem_data: %h\ndmem_addr: %h\n", pc, i_cur_insn, i_cur_dmem_data, wdata, o_dmem_towrite, o_dmem_addr);
+      $display("pc: %h\ninsn: %b\ni_cur_dmem_data: %h\nwdata: %h\nmem_data: %h\ndmem_addr: %h\nis_load: %b\nis_store: %h\nrs: %h\nrt: %h\n", pc, i_cur_insn, i_cur_dmem_data, wdata, test_dmem_data, test_dmem_addr, is_load, is_store, o_rs_data, o_rt_data);
       // $display("pc: %h\ni_pc1: %h\nnext_pc: %h\n", pc, i_pc1, next_pc);
       // $display("%d %h %h %h %h %h", $time, f_pc, d_pc, e_pc, m_pc, test_cur_pc);
       // if (o_dmem_we)
