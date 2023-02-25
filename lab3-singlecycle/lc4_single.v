@@ -124,12 +124,12 @@ module lc4_processor
     * TODO: INSERT YOUR CODE HERE *
     *******************************/
     wire [2:0] r1sel, r2sel, wsel, o_nzp;
-    wire r1re, r2re, regfile_we, nzp_we, select_pc_plus_one, is_load, is_store,
+    wire r1re, r2re, regfile_we, nzp_we, select_pc_plus_one, is_load,
       is_branch, is_control_insn, take_branch;
    lc4_decoder decoder(.insn(i_cur_insn), .r1sel(r1sel), .r2sel(r2sel), .wsel(wsel),
       .r1re(r1re), .r2re(r2re), .regfile_we(regfile_we), .nzp_we(nzp_we),
-      .select_pc_plus_one(select_pc_plus_one), .is_load(is_load), .is_store(is_store),
-      .is_branch(is_branch), .is_control_insn);
+      .select_pc_plus_one(select_pc_plus_one), .is_load(is_load), .is_store(o_dmem_we),
+      .is_branch(is_branch), .is_control_insn(is_control_insn));
 
    wire [15:0] wdata;
    // wire [15:0] i_pc1;
@@ -155,21 +155,16 @@ module lc4_processor
 
    assign test_cur_pc = pc;
    assign o_cur_pc = pc;
-   // assign next_pc = o_cur_pc;
    assign test_cur_insn = i_cur_insn;
    assign test_regfile_we = regfile_we;
    assign test_regfile_wsel = wsel;
    assign test_regfile_data = wdata; // regfile_in
    assign test_nzp_we = nzp_we;
-   // assign test_nzp_new_bits = o_nzp;
-   assign test_dmem_we = is_store;
-   assign test_dmem_addr = is_store | is_load ? o_dmem_addr    : 16'b0;
-   // assign test_dmem_data = is_store | is_load ? o_dmem_towrite : 16'b0;
-   assign test_dmem_data = is_store ? o_dmem_towrite :
-                           is_load  ? i_cur_dmem_data :
+   assign test_dmem_we = o_dmem_we;
+   assign test_dmem_addr = o_dmem_we | is_load ? o_dmem_addr    : 16'b0;
+   assign test_dmem_data = o_dmem_we ? o_dmem_towrite :
+                           is_load   ? i_cur_dmem_data :
                            16'b0;
-   // assign test_dmem_addr = o_dmem_addr;
-   // assign test_dmem_data = o_dmem_towrite;
 
    /* Add $display(...) calls in the always block below to
     * print out debug information at the end of every cycle.
@@ -187,7 +182,7 @@ module lc4_processor
     */
 `ifndef NDEBUG
    always @(posedge gwe) begin
-      $display("pc: %h\ninsn: %b\ni_cur_dmem_data: %h\nwdata: %h\nmem_data: %h\ndmem_addr: %h\nis_load: %b\nis_store: %h\nrs: %h\nrt: %h\n", pc, i_cur_insn, i_cur_dmem_data, wdata, test_dmem_data, test_dmem_addr, is_load, is_store, o_rs_data, o_rt_data);
+      // $display("pc: %h\ninsn: %b\ni_cur_dmem_data: %h\nwdata: %h\nmem_data: %h\ndmem_addr: %h\nis_load: %b\nis_store: %h\nrs: %h\nrt: %h\n", pc, i_cur_insn, i_cur_dmem_data, wdata, test_dmem_data, test_dmem_addr, is_load, o_dmem_we, o_rs_data, o_rt_data);
       // $display("pc: %h\ni_pc1: %h\nnext_pc: %h\n", pc, i_pc1, next_pc);
       // $display("%d %h %h %h %h %h", $time, f_pc, d_pc, e_pc, m_pc, test_cur_pc);
       // if (o_dmem_we)
