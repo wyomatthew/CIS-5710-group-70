@@ -67,10 +67,14 @@ module pipe_reg_D(input wire clk,
                   input wire rst,
                   input wire [15:0] i_insn, 
                   input wire [15:0] i_pc,
+                  input wire [1:0]  i_stall,
                   output wire [15:0] o_insn,
-                  output wire [15:0] o_pc);
+                  output wire [15:0] o_pc,
+                  output wire [1:0]  o_stall);
    Nbit_reg #(.n(16), .r(0)) insn_reg (.in(i_insn), .out(o_insn), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(16), .r(0)) pc_reg (.in(i_pc), .out(o_pc), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
+
+   Nbit_reg #(.n(2), .r(2)) stall_reg (.in(i_stall), .out(o_stall), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
 endmodule
 
 module pipe_reg_X(input wire         clk,
@@ -79,6 +83,7 @@ module pipe_reg_X(input wire         clk,
                   input wire         rst,
                   input wire [15:0]  i_insn,
                   input wire [15:0]  i_pc,
+                  input wire [1:0]   i_stall,
                   input wire [15:0]  i_r1data,
                   input wire [15:0]  i_r2data,
                   input wire         i_nzp_we,
@@ -92,6 +97,7 @@ module pipe_reg_X(input wire         clk,
                   input wire [2:0]   i_regfile_r2sel,
                   output wire [15:0] o_insn,
                   output wire [15:0] o_pc,
+                  output wire [1:0]  o_stall,
                   output wire [15:0] o_r1data,
                   output wire [15:0] o_r2data,
                   output wire        o_nzp_we,
@@ -117,6 +123,8 @@ module pipe_reg_X(input wire         clk,
    Nbit_reg #(.n(3), .r(0)) regfile_wsel_reg (.in(i_regfile_wsel), .out(o_regfile_wsel), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(3), .r(0)) regfile_r1sel_reg (.in(i_regfile_r1sel), .out(o_regfile_r1sel), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(3), .r(0)) regfile_r2sel_reg (.in(i_regfile_r2sel), .out(o_regfile_r2sel), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
+   
+   Nbit_reg #(.n(2), .r(2)) stall_reg (.in(i_stall), .out(o_stall), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
 endmodule
 
 module pipe_reg_M(input wire         clk,
@@ -125,6 +133,7 @@ module pipe_reg_M(input wire         clk,
                   input wire         rst,
                   input wire [15:0]  i_insn,
                   input wire [15:0]  i_pc,
+                  input wire [1:0]   i_stall,
                   input wire [15:0]  i_alu_output,
                   input wire [15:0]  i_r2data,
                   input wire         i_nzp_we,
@@ -133,8 +142,10 @@ module pipe_reg_M(input wire         clk,
                   input wire         i_regfile_we,
                   input wire [2:0]   i_regfile_wsel,
                   input wire [2:0]   i_regfile_r2sel,
+                  input wire [2:0]   i_nzp_data,
                   output wire [15:0] o_insn,
                   output wire [15:0] o_pc,
+                  output wire [1:0]  o_stall,
                   output wire [15:0] o_alu_output,
                   output wire [15:0] o_r2data,
                   output wire        o_nzp_we,
@@ -142,7 +153,8 @@ module pipe_reg_M(input wire         clk,
                   output wire        o_is_store,
                   output wire        o_regfile_we,
                   output wire [2:0]  o_regfile_wsel,
-                  output wire [2:0]  o_regfile_r2sel);
+                  output wire [2:0]  o_regfile_r2sel,
+                  output wire [2:0]  o_nzp_data);
    Nbit_reg #(.n(16), .r(0)) insn_reg (.in(i_insn), .out(o_insn), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(16), .r(0)) pc_reg (.in(i_pc), .out(o_pc), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(16), .r(0)) alu_output_reg (.in(i_alu_output), .out(o_alu_output), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
@@ -154,6 +166,11 @@ module pipe_reg_M(input wire         clk,
    Nbit_reg #(.n(1), .r(0)) regfile_we_reg (.in(i_regfile_we), .out(o_regfile_we), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(3), .r(0)) regfile_wsel_reg (.in(i_regfile_wsel), .out(o_regfile_wsel), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(3), .r(0)) regfile_r2sel_reg (.in(i_regfile_r2sel), .out(o_regfile_r2sel), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
+
+   Nbit_reg #(.n(3), .r(0)) nzp_data_reg (.in(i_nzp_data), .out(o_nzp_data), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
+
+   Nbit_reg #(.n(2), .r(2)) stall_reg (.in(i_stall), .out(o_stall), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
+
 endmodule
 
 module pipe_reg_W(input wire         clk,
@@ -162,17 +179,21 @@ module pipe_reg_W(input wire         clk,
                   input wire         rst,
                   input wire [15:0]  i_insn,
                   input wire [15:0]  i_pc,
+                  input wire [1:0]   i_stall,
                   input wire [15:0]  i_alu_output,
                   input wire [15:0]  i_dmem_load,
                   input wire         i_nzp_we,
+                  input wire [2:0]   i_nzp_data,
                   input wire         i_is_load,
                   input wire         i_regfile_we,
                   input wire [2:0]   i_regfile_wsel,
                   output wire [15:0] o_insn,
                   output wire [15:0] o_pc,
+                  output wire [1:0]  o_stall,
                   output wire [15:0] o_alu_output,
                   output wire [15:0] o_dmem_load,
                   output wire        o_nzp_we,
+                  output wire [2:0]  o_nzp_data,
                   output wire        o_is_load,
                   output wire        o_regfile_we,
                   output wire [2:0]  o_regfile_wsel);
@@ -186,6 +207,8 @@ module pipe_reg_W(input wire         clk,
    Nbit_reg #(.n(1), .r(0)) regfile_we_reg (.in(i_regfile_we), .out(o_regfile_we), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
    Nbit_reg #(.n(3), .r(0)) regfile_wsel_reg (.in(i_regfile_wsel), .out(o_regfile_wsel), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
 
+   Nbit_reg #(.n(3), .r(0)) nzp_data_reg (.in(i_nzp_data), .out(o_nzp_data), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
+   Nbit_reg #(.n(2), .r(2)) stall_reg (.in(i_stall), .out(o_stall), .clk(clk), .we(we), .gwe(gwe), .rst(rst));
 endmodule
 
 module lc4_processor
@@ -224,13 +247,13 @@ module lc4_processor
    // Program counter register, starts at 8200h at bootup
    Nbit_reg #(.n(16), .r(16'h8200)) pc_reg (.in(next_pc), .out(pc), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    wire [15:0] flush;
-   wire [15:0] next_flush;
-   cla16 flush_cla(.a(flush), .b(16'hFFFF), .cin(1'b0), .sum(next_flush));
+   wire [15:0] flush_sum, next_flush;
+   cla16 flush_cla(.a(flush), .b(16'hFFFF), .cin(1'b0), .sum(flush_sum));
    wire flush_reg_we = flush > 0;
+   assign next_flush = flush_sum;
    Nbit_reg #(.n(16), .r(16'b100)) flush_reg (.in(next_flush), .out(flush), .clk(clk), .we(flush_reg_we), .gwe(gwe), .rst(rst));
    
    // Initialize pipelines in sequence
-   wire [1:0] do_stall;
 
    // Initialize F-D split
    wire [15:0] pc1;
@@ -238,12 +261,19 @@ module lc4_processor
 
    // Branch predict next program counter
    // TODO insert noop on stall
-   assign next_pc = do_stall == 2'b11 ? pc : pc1;
+   assign next_pc = reg_D_o_stall == 2'b11 ? pc       : // Check for LOAD to USE penalty
+                    reg_X_o_take_branch    ? o_result : // Check for branch taken
+                                             pc1      ; // Check for normal instruction or branch prediction
    
    wire [15:0] out_insn, out_pc;
    assign out_insn = i_cur_insn;
    assign out_pc   = pc;
    wire [15:0] reg_D_o_insn, reg_D_o_pc;
+   wire [1:0] reg_D_o_stall;
+
+   wire [1:0] next_insn_stall = load_to_use_stall                   ? 2'd3 :
+                                (take_branch | reg_X_o_take_branch) ? 2'd2 :
+                                                                     2'd0 ;
    pipe_reg_D reg_D(
       .clk(clk),
       .we(1'b1),
@@ -251,8 +281,10 @@ module lc4_processor
       .rst(rst),
       .i_insn(out_insn),  // Input wire to module
       .i_pc(out_pc),          // Input wire incremented from pc_reg above
+      .i_stall(next_insn_stall),
       .o_insn(reg_D_o_insn),
-      .o_pc(reg_D_o_pc));
+      .o_pc(reg_D_o_pc),
+      .o_stall(reg_D_o_stall));
 
    // Initialize D-X split
    wire [2:0] r1sel, r2sel, wsel;
@@ -277,15 +309,16 @@ module lc4_processor
       r1sel == reg_X_o_regfile_wsel | (
          r2sel == reg_X_o_regfile_wsel &
          (!is_store)
-      )
+      ) | is_branch
    );
-   assign do_stall = load_to_use_stall ? 2'b11 :
-                         flush > 0     ? 2'b10 :
-                                         2'b00 ;
 
 
    wire take_branch;
-   wire [2:0] branch_controller_o_nzp;
+   wire [2:0] branch_controller_o_nzp = 
+      reg_X_o_nzp_we ? nzp_data         :
+      reg_M_o_nzp_we ? reg_M_o_nzp_data :
+      reg_W_o_nzp_we ? reg_W_o_nzp_data :
+                       o_nzp_reg_data   ;
    lc4_branch_controller branch_controller(
       .insn(reg_D_o_insn),               // 16-bit input
       .o_nzp(branch_controller_o_nzp),   // 3-bit input
@@ -321,6 +354,7 @@ module lc4_processor
    wire reg_X_o_is_load, reg_X_o_is_store, reg_X_o_take_branch, 
       reg_X_o_select_pc_plus_one, reg_X_o_regfile_we, reg_X_o_nzp_we;
    wire [2:0] reg_X_o_regfile_wsel, reg_X_o_regfile_r1sel, reg_X_o_regfile_r2sel;
+   wire [1:0] reg_X_o_stall;
    pipe_reg_X reg_X(
       .clk(clk),
       .we(1'b1),
@@ -328,6 +362,7 @@ module lc4_processor
       .rst(rst),
       .i_insn(reg_D_o_insn),
       .i_pc(reg_D_o_pc),
+      .i_stall(reg_D_o_stall),
       .i_r1data(rs_data),
       .i_r2data(rt_data),
       .i_nzp_we(nzp_we),
@@ -341,6 +376,7 @@ module lc4_processor
       .i_regfile_r2sel(r2sel),
       .o_insn(reg_X_o_insn),
       .o_pc(reg_X_o_pc),
+      .o_stall(reg_X_o_stall),
       .o_r1data(reg_X_o_r1data),
       .o_r2data(reg_X_o_r2data),
       .o_nzp_we(reg_X_o_nzp_we),
@@ -388,7 +424,12 @@ module lc4_processor
 
    wire [15:0] reg_M_o_alu_output, reg_M_o_r2data, reg_M_o_insn, reg_M_o_pc;
    wire reg_M_o_is_load, reg_M_o_is_store, reg_M_o_regfile_we, reg_M_o_nzp_we;
-   wire [2:0] reg_M_o_regfile_wsel, reg_M_o_regfile_r2sel;
+   wire [2:0] reg_M_o_regfile_wsel, reg_M_o_regfile_r2sel, reg_M_o_nzp_data;
+   wire [1:0] reg_M_o_stall;
+   wire [2:0] nzp_data;
+   assign nzp_data = $signed(o_result) <  0 ? 3'b100 :
+                     $signed(o_result) == 0 ? 3'b010 :
+                                             3'b001 ;
    pipe_reg_M reg_M(
       .clk(clk),
       .we(1'b1),
@@ -396,6 +437,7 @@ module lc4_processor
       .rst(rst),
       .i_insn(reg_X_o_insn),
       .i_pc(reg_X_o_pc),
+      .i_stall(reg_X_o_stall),
       .i_alu_output(o_result),
       .i_r2data(reg_X_o_r2data),
       .i_nzp_we(reg_X_o_nzp_we),
@@ -404,8 +446,10 @@ module lc4_processor
       .i_regfile_we(reg_X_o_regfile_we),
       .i_regfile_wsel(reg_X_o_regfile_wsel),
       .i_regfile_r2sel(reg_X_o_regfile_r2sel),
+      .i_nzp_data(nzp_data),
       .o_insn(reg_M_o_insn),
       .o_pc(reg_M_o_pc),
+      .o_stall(reg_M_o_stall),
       .o_alu_output(reg_M_o_alu_output),
       .o_r2data(reg_M_o_r2data),
       .o_nzp_we(reg_M_o_nzp_we),
@@ -413,7 +457,8 @@ module lc4_processor
       .o_is_store(reg_M_o_is_store),
       .o_regfile_we(reg_M_o_regfile_we),
       .o_regfile_wsel(reg_M_o_regfile_wsel),
-      .o_regfile_r2sel(reg_M_o_regfile_r2sel));
+      .o_regfile_r2sel(reg_M_o_regfile_r2sel),
+      .o_nzp_data(reg_M_o_nzp_data));
 
    // assign next_pc = take_branch ? o_result : reg_X_o_pc;
    assign o_cur_pc = pc;
@@ -425,7 +470,8 @@ module lc4_processor
 
    wire [15:0] reg_W_o_alu_output, reg_W_o_dmem_load, reg_W_o_insn, reg_W_o_pc;
    wire reg_W_o_is_load, reg_W_o_regfile_we, reg_W_o_nzp_we;
-   wire [2:0] reg_W_o_regfile_wsel;
+   wire [2:0] reg_W_o_regfile_wsel, reg_W_o_nzp_data;
+   wire [1:0] reg_W_o_stall;
    pipe_reg_W reg_W(
       .clk(clk),
       .we(1'b1),
@@ -433,17 +479,21 @@ module lc4_processor
       .rst(rst),
       .i_insn(reg_M_o_insn),
       .i_pc(reg_M_o_pc),
+      .i_stall(reg_M_o_stall),
       .i_alu_output(reg_M_o_alu_output),
       .i_dmem_load(i_cur_dmem_data),     // Input wire to module
       .i_nzp_we(reg_M_o_nzp_we),
+      .i_nzp_data(reg_M_o_nzp_data),
       .i_is_load(reg_M_o_is_load),
       .i_regfile_we(reg_M_o_regfile_we),
       .i_regfile_wsel(reg_M_o_regfile_wsel),
       .o_insn(reg_W_o_insn),
       .o_pc(reg_W_o_pc),
+      .o_stall(reg_W_o_stall),
       .o_alu_output(reg_W_o_alu_output),
       .o_dmem_load(reg_W_o_dmem_load),
       .o_nzp_we(reg_W_o_nzp_we),
+      .o_nzp_data(reg_W_o_nzp_data),
       .o_is_load(reg_W_o_is_load),
       .o_regfile_we(reg_W_o_regfile_we),
       .o_regfile_wsel(reg_W_o_regfile_wsel));
@@ -454,25 +504,24 @@ module lc4_processor
    assign i_wdata = reg_W_o_is_load ? reg_W_o_dmem_load : reg_W_o_alu_output;
    assign i_wsel = reg_W_o_regfile_wsel;
 
-   wire [2:0] wrap_o_nzp, wrap_i_nzp;
-   lc4_nzp_controller lc4_nzp_controller_wrap(
+   wire [2:0] o_nzp_reg_data;
+   Nbit_reg #(.n(3), .r(0)) nzp_reg(
+      .in(reg_W_o_nzp_data),
+      .out(o_nzp_reg_data),
       .clk(clk),
+      .we(reg_W_o_nzp_we),
       .gwe(gwe),
-      .rst(rst),
-      .wdata(i_wdata),
-      .nzp_we(reg_W_o_nzp_we),
-      .o_nzp(wrap_o_nzp),
-      .i_nzp(wrap_i_nzp)
+      .rst(rst)
    );
    // Wire to test outputs
-   assign test_stall = do_stall; // TODO
+   assign test_stall = reg_W_o_stall;
    assign test_cur_pc = reg_W_o_pc;
    assign test_cur_insn = reg_W_o_insn;
    assign test_regfile_we = i_rd_we;
    assign test_regfile_wsel = i_wsel;
    assign test_regfile_data = i_wdata;
-   assign test_nzp_we = reg_W_o_nzp_we; // TODO
-   assign test_nzp_new_bits = wrap_i_nzp; // TODO
+   assign test_nzp_we = reg_W_o_nzp_we;
+   assign test_nzp_new_bits = reg_W_o_nzp_data;
    assign test_dmem_we = o_dmem_we;
    assign test_dmem_addr = test_dmem_we ? o_dmem_addr    : 16'b0;
    assign test_dmem_data = test_dmem_we ? o_dmem_towrite : 16'b0;
@@ -490,31 +539,32 @@ module lc4_processor
     */
 `ifndef NDEBUG
    always @(posedge gwe) begin
-      // $display("PC: %h", pc);
-      // $display("o_cur_pc: %h", o_cur_pc);
-      // $display("F -> PC: %h", pc);
-      // $display("D -> PC: %h, INSN: %h", reg_D_o_pc, reg_D_o_insn);
-      // $display("X -> PC: %h, INSN: %h, r1_data: %h, r1_sel: %d, r2_data: %h, r2_sel: %d, w_sel: %d, wx_bypass_r1: %b, wx_bypass_r2: %b, mx_bypass_r1: %b, mx_bypass_r2: %b",
-      //    reg_X_o_pc,
-      //    reg_X_o_insn,
-      //    reg_X_o_r1data,
-      //    reg_X_o_regfile_r1sel,
-      //    reg_X_o_r2data,
-      //    reg_X_o_regfile_r2sel,
-      //    reg_X_o_regfile_wsel,
-      //    wx_bypass_r1,
-      //    wx_bypass_r2,
-      //    mx_bypass_r1,
-      //    mx_bypass_r2);
-      // $display("M -> PC: %h, INSN: %h, alu_out: %h, w_sel: %d, w_we: %b", reg_M_o_pc, reg_M_o_insn, reg_M_o_alu_output, reg_M_o_regfile_wsel, reg_M_o_regfile_we);
-      // $display("W -> pc: %h, INSN: %h, writeback_data: %h, writeback_we: %b, w_sel: %d",
-      //    reg_W_o_pc,
-      //    reg_W_o_insn,
-      //    i_wdata,
-      //    i_rd_we,
-      //    reg_W_o_regfile_wsel);
+      $display("PC: %h", pc);
+      $display("flush: %d", flush);
+      $display("stall: %d", reg_W_o_stall);
+      $display("F -> PC: %h", pc);
+      $display("D -> PC: %h, INSN: %h, take_branch: %b", reg_D_o_pc, reg_D_o_insn, take_branch);
+      $display("X -> PC: %h, INSN: %h, r1_data: %h, r1_sel: %d, r2_data: %h, r2_sel: %d, w_sel: %d, wx_bypass_r1: %b, wx_bypass_r2: %b, mx_bypass_r1: %b, mx_bypass_r2: %b",
+         reg_X_o_pc,
+         reg_X_o_insn,
+         reg_X_o_r1data,
+         reg_X_o_regfile_r1sel,
+         reg_X_o_r2data,
+         reg_X_o_regfile_r2sel,
+         reg_X_o_regfile_wsel,
+         wx_bypass_r1,
+         wx_bypass_r2,
+         mx_bypass_r1,
+         mx_bypass_r2);
+      $display("M -> PC: %h, INSN: %h, alu_out: %h, w_sel: %d, w_we: %b", reg_M_o_pc, reg_M_o_insn, reg_M_o_alu_output, reg_M_o_regfile_wsel, reg_M_o_regfile_we);
+      $display("W -> pc: %h, INSN: %h, writeback_data: %h, writeback_we: %b, w_sel: %d",
+         reg_W_o_pc,
+         reg_W_o_insn,
+         i_wdata,
+         i_rd_we,
+         reg_W_o_regfile_wsel);
 
-      // $display("\n");
+      $display("\n");
       // $display("Time: %d\nPC: %h\nINSN: %h\nregfile_we: %b\nregfile_in: %h\n", 
       //    $time,
       //    test_cur_pc,
