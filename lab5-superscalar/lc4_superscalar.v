@@ -225,25 +225,34 @@ module lc4_processor(input wire         clk,             // main clock
    wire [15:0] next_pc;
 
    Nbit_reg #(.n(16), .r(16'h8200)) pc_reg (.in(next_pc), .out(pc_reg_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-   assign pc = load_to_use_stall ? reg_D_o_pc : pc_reg_out; // TODO change
+   
+   wire [15:0] pc_minus_one;
+   cla16 decrementer(.a(pc_reg_out), .b(16'hffff), .cin(1'b0), .sum(pc_minus_one));
+
+   assign pc = do_pipe_switch ? pc_minus_one : pc_reg_out; // TODO handle stalls, branches, etc
+   assign o_cur_pc = pc;
 
    // Initialize pipelines in sequence
    
    // Initialize F-D split
+   wire [15:0] pc2;
+   cla16 incrementer2(.a(pc), .b(16'd2), .cin(1'b0), .sum(pc2));
    wire [15:0] pc1;
-   cla16 incrementer(.a(pc), .b(16'b1), .cin(1'b0), .sum(pc1));
+   cla16 incrementer1(.a(pc), .b(16'd1), .cin(1'b0), .sum(pc1));
 
    // Branch predict next program counter
-   assign next_pc = reg_X_o_take_branch ? o_result : // TODO change to accomodate pipelines
-                                          pc1      ;
+   assign next_pc = pc2; // TODO ACCOUNT FOR BRANCHING AND SHIT
 
-   wire [15:0] out_insn_A, out_insn_B, out_pc;
+   wire [15:0] out_insn_A, out_insn_B, out_pc_A, out_pc_B;
    assign out_insn_A = i_cur_insn_A;
    assign out_insn_B = i_cur_insn_B;
-   assign out_pc     = pc;
+   assign out_pc_A   = pc;
+   cla16 pc_incrementer(.a(pc), .b(16'b1), .cin(1'b0), .sum(out_pc_B));
 
    wire [1:0] next_insn_stall_A, next_insn_stall_B; // TODO assign
-
+   assign next_insn_stall_A = 2'b0;
+   assign next_insn_stall_B = 2'b0; 
+   
    wire [15:0] reg_D_A_o_insn, reg_D_A_o_pc;
    wire [1:0] reg_D_A_o_stall;
    wire [15:0] reg_D_B_o_insn, reg_D_B_o_pc;
@@ -312,7 +321,7 @@ module lc4_processor(input wire         clk,             // main clock
    );
 
    wire i_rd_we;
-   wire [2:0] i_rs_A, i_rt_A, i_rs_B, i_rt_B, i_rd_A, i_rd_B;
+   wire [2:0] i_rd_A, i_rd_B;
    wire [15:0] o_rs_data_A, o_rt_data_A, o_rs_data_B, o_rt_data_B, i_wdata_A, i_wdata_B; 
    wire i_rd_we_A, i_rd_we_B;  
    lc4_regfile_ss #(.n(16)) regfile(
@@ -320,45 +329,56 @@ module lc4_processor(input wire         clk,             // main clock
       .gwe(gwe),
       .rst(rst),
       
-      .i_rs_A(i_rs_A),
+      .i_rs_A(r1sel_A),
       .o_rs_data_A(o_rs_data_A),
-      .i_rt_A(i_rt_A),
+      .i_rt_A(r2sel_A),
       .o_rt_data_A(o_rt_data_A),
 
       .i_rd_A(i_rd_A),
       .i_wdata_A(i_wdata_A),
       .i_rd_we_A(i_rd_we_A),
       
-      .i_rs_B(i_rs_B),
+      .i_rs_B(r1sel_B),
       .o_rs_data_B(o_rs_data_B),
-      .i_rt_B(i_rt_B),
+      .i_rt_B(r2sel_B),
       .o_rt_data_B(o_rt_data_B),
 
       .i_rd_B(i_rd_B),
       .i_wdata_B(i_wdata_B),
       .i_rd_we_B(i_rd_we_B)
    );
-   
+
+   // Look for D.A->D.B dependency
+   wire D_B_depends_on_D_A = (reg_D_A_o_stall == 2'b0) & regfile_we_A & (((wsel_A == r1sel_B) & r1re_B) | ((wsel_A == r2sel_B) & r2re_B)); // only B stalls
+   wire do_pipe_switch = D_B_depends_on_D_A;
+
+   wire [1:0] i_stall_A, i_stall_B;
+   assign i_stall_A = 2'b0; // TODO
+   assign i_stall_B = 2'b0; // TODO
+   wire i_take_branch_A, i_take_branch_B;
+   assign i_take_branch_A = 1'b0; // TODO
+   assign i_take_branch_B = 1'b0; // TODO
+
    wire  reg_X_A_o_regfile_r1re, reg_X_A_o_regfile_r2re, reg_X_A_o_nzp_we, reg_X_A_o_is_load, reg_X_A_o_is_store, reg_X_A_o_is_cntl, reg_X_A_o_take_branch, reg_X_A_o_select_pc_plus_one, reg_X_A_o_regfile_we;
    wire [1:0] reg_X_A_o_stall;
    wire [2:0] reg_X_A_o_regfile_wsel, reg_X_A_o_regfile_r1sel, reg_X_A_o_regfile_r2sel;
    wire [15:0] reg_X_A_o_insn, reg_X_A_o_pc, reg_X_A_o_r1data, reg_X_A_o_r2data;
 
-   pipe_reg_X_A reg_X_A(
+   pipe_reg_X reg_X_A(
       .clk(clk),
       .we(1'b1),
       .gwe(gwe),
       .rst(rst),
       .i_insn(reg_D_A_o_insn),
       .i_pc(reg_D_A_o_pc),
-      .i_stall(), // TODO
-      .i_r1data(i_rs_A),
-      .i_r2data(i_rt_A),
+      .i_stall(reg_D_A_o_stall),
+      .i_r1data(o_rs_data_A),
+      .i_r2data(o_rt_data_A),
       .i_nzp_we(nzp_we_A),
       .i_is_load(is_load_A),
       .i_is_store(is_store_A),
       .i_is_cntl(is_control_insn_A),
-      .i_take_branch(), // TODO
+      .i_take_branch(i_take_branch_A),
       .i_select_pc_plus_one(select_pc_plus_one_A),
       .i_regfile_we(regfile_we_A),
       .i_regfile_wsel(wsel_A),
@@ -390,21 +410,21 @@ module lc4_processor(input wire         clk,             // main clock
    wire [2:0] reg_X_B_o_regfile_wsel, reg_X_B_o_regfile_r1sel, reg_X_B_o_regfile_r2sel;
    wire [15:0] reg_X_B_o_insn, reg_X_B_o_pc, reg_X_B_o_r1data, reg_X_B_o_r2data;
 
-   pipe_reg_X_B reg_X_B(
+   pipe_reg_X reg_X_B(
       .clk(clk),
       .we(1'b1),
       .gwe(gwe),
       .rst(rst),
       .i_insn(reg_D_B_o_insn),
       .i_pc(reg_D_B_o_pc),
-      .i_stall(),  // TODO
-      .i_r1data(i_rs_B),
-      .i_r2data(i_rt_B),
+      .i_stall(reg_D_B_o_stall == 2'd2 ? 2'd2 : D_B_depends_on_D_A ? 2'd1 : 2'd0),
+      .i_r1data(o_rs_data_B),
+      .i_r2data(o_rt_data_B),
       .i_nzp_we(nzp_we_B),
       .i_is_load(is_load_B),
       .i_is_store(is_store_B),
       .i_is_cntl(is_control_insn_B),
-      .i_take_branch(), // TODO
+      .i_take_branch(i_take_branch_B),
       .i_select_pc_plus_one(select_pc_plus_one_B),
       .i_regfile_we(regfile_we_B),
       .i_regfile_wsel(wsel_B),
@@ -432,12 +452,60 @@ module lc4_processor(input wire         clk,             // main clock
    );
 
    // Initialize X-M split
+
+   // wire mx_bypass_r1, mx_bypass_r2;
+   // wire wx_bypass_r1, wx_bypass_r2;
+
+   // // Determine when to W-X bypass r1
+   // assign wx_bypass_r1 = reg_X_o_regfile_r1re & (i_wsel == reg_X_o_regfile_r1sel) & reg_W_o_regfile_we & reg_W_o_stall == 0;
+
+   // // Determine when to W-X bypass r2
+   // assign wx_bypass_r2 = reg_X_o_regfile_r2re & (i_wsel == reg_X_o_regfile_r2sel) & reg_W_o_regfile_we & reg_W_o_stall == 0;
+   
+   wire MA_XA_bypass_r1 = reg_X_A_o_regfile_r1re & (reg_M_A_o_regfile_wsel == reg_X_A_o_regfile_r1sel) & (~reg_M_A_o_is_load) & reg_M_A_o_regfile_we & reg_M_A_o_stall == 2'b0;
+   wire MA_XA_bypass_r2 = reg_X_A_o_regfile_r2re & (reg_M_A_o_regfile_wsel == reg_X_A_o_regfile_r2sel) & (~reg_M_A_o_is_load) & reg_M_A_o_regfile_we & reg_M_A_o_stall == 2'b0;
+   wire MB_XA_bypass_r1 = reg_X_A_o_regfile_r1re & (reg_M_B_o_regfile_wsel == reg_X_A_o_regfile_r1sel) & (~reg_M_B_o_is_load) & reg_M_B_o_regfile_we & reg_M_B_o_stall == 2'b0;
+   wire MB_XA_bypass_r2 = reg_X_A_o_regfile_r2re & (reg_M_B_o_regfile_wsel == reg_X_A_o_regfile_r2sel) & (~reg_M_B_o_is_load) & reg_M_B_o_regfile_we & reg_M_B_o_stall == 2'b0;
+   wire MA_XB_bypass_r1 = reg_X_B_o_regfile_r1re & (reg_M_A_o_regfile_wsel == reg_X_B_o_regfile_r1sel) & (~reg_M_A_o_is_load) & reg_M_A_o_regfile_we & reg_M_A_o_stall == 2'b0;
+   wire MA_XB_bypass_r2 = reg_X_B_o_regfile_r2re & (reg_M_A_o_regfile_wsel == reg_X_B_o_regfile_r2sel) & (~reg_M_A_o_is_load) & reg_M_A_o_regfile_we & reg_M_A_o_stall == 2'b0;
+   wire MB_XB_bypass_r1 = reg_X_B_o_regfile_r1re & (reg_M_B_o_regfile_wsel == reg_X_B_o_regfile_r1sel) & (~reg_M_B_o_is_load) & reg_M_B_o_regfile_we & reg_M_B_o_stall == 2'b0;
+   wire MB_XB_bypass_r2 = reg_X_B_o_regfile_r2re & (reg_M_B_o_regfile_wsel == reg_X_B_o_regfile_r2sel) & (~reg_M_B_o_is_load) & reg_M_B_o_regfile_we & reg_M_B_o_stall == 2'b0;
+
+   wire WA_XA_bypass_r1 = reg_X_A_o_regfile_r1re & (reg_W_A_o_regfile_wsel == reg_X_A_o_regfile_r1sel) & reg_W_A_o_regfile_we & reg_W_A_o_stall == 2'b0;
+   wire WA_XA_bypass_r2 = reg_X_A_o_regfile_r2re & (reg_W_A_o_regfile_wsel == reg_X_A_o_regfile_r2sel) & reg_W_A_o_regfile_we & reg_W_A_o_stall == 2'b0;
+   wire WB_XA_bypass_r1 = reg_X_A_o_regfile_r1re & (reg_W_B_o_regfile_wsel == reg_X_A_o_regfile_r1sel) & reg_W_B_o_regfile_we & reg_W_B_o_stall == 2'b0;
+   wire WB_XA_bypass_r2 = reg_X_A_o_regfile_r2re & (reg_W_B_o_regfile_wsel == reg_X_A_o_regfile_r2sel) & reg_W_B_o_regfile_we & reg_W_B_o_stall == 2'b0;
+   wire WA_XB_bypass_r1 = reg_X_B_o_regfile_r1re & (reg_W_A_o_regfile_wsel == reg_X_B_o_regfile_r1sel) & reg_W_A_o_regfile_we & reg_W_A_o_stall == 2'b0;
+   wire WA_XB_bypass_r2 = reg_X_B_o_regfile_r2re & (reg_W_A_o_regfile_wsel == reg_X_B_o_regfile_r2sel) & reg_W_A_o_regfile_we & reg_W_A_o_stall == 2'b0;
+   wire WB_XB_bypass_r1 = reg_X_B_o_regfile_r1re & (reg_W_B_o_regfile_wsel == reg_X_B_o_regfile_r1sel) & reg_W_B_o_regfile_we & reg_W_B_o_stall == 2'b0;
+   wire WB_XB_bypass_r2 = reg_X_B_o_regfile_r2re & (reg_W_B_o_regfile_wsel == reg_X_B_o_regfile_r2sel) & reg_W_B_o_regfile_we & reg_W_B_o_stall == 2'b0;
+
+   wire [15:0] alu_A_r1data, alu_A_r2data, alu_B_r1data, alu_B_r2data;
+   assign alu_A_r1data = MB_XA_bypass_r1 ? reg_M_B_o_alu_output : MA_XA_bypass_r1 ? reg_M_A_o_alu_output : WB_XA_bypass_r1 ? reg_W_B_o_alu_output : WA_XA_bypass_r1 ? reg_W_A_o_alu_output : reg_X_A_o_r1data;
+   assign alu_A_r2data = MB_XA_bypass_r2 ? reg_M_B_o_alu_output : MA_XA_bypass_r2 ? reg_M_A_o_alu_output : WB_XA_bypass_r2 ? reg_W_B_o_alu_output : WA_XA_bypass_r2 ? reg_W_A_o_alu_output : reg_X_A_o_r2data;
+   assign alu_B_r1data = MB_XB_bypass_r1 ? reg_M_B_o_alu_output : MA_XB_bypass_r1 ? reg_M_A_o_alu_output : WB_XB_bypass_r1 ? reg_W_B_o_alu_output : WA_XB_bypass_r1 ? reg_W_A_o_alu_output : reg_X_B_o_r1data;
+   assign alu_B_r2data = MB_XB_bypass_r2 ? reg_M_B_o_alu_output : MA_XB_bypass_r2 ? reg_M_A_o_alu_output : WB_XB_bypass_r2 ? reg_W_B_o_alu_output : WA_XB_bypass_r2 ? reg_W_A_o_alu_output : reg_X_B_o_r2data;
+   
+   // Initialize ALUs
+   wire [15:0] o_result_A, o_result_B;
+   lc4_alu alu_A(.i_insn(reg_X_A_o_insn), .i_pc(reg_X_A_o_pc), .i_r1data(alu_A_r1data), .i_r2data(alu_A_r2data), .o_result(o_result_A));
+   lc4_alu alu_B(.i_insn(reg_X_B_o_insn), .i_pc(reg_X_B_o_pc), .i_r1data(alu_B_r1data), .i_r2data(alu_B_r2data), .o_result(o_result_B));
+
+   // Initialize NZP data
+   wire [2:0] nzp_data_A, nzp_data_B;
+   assign nzp_data_A = $signed(o_result_A) < 0 ? 3'b100  :
+                       $signed(o_result_A) == 0 ? 3'b010 :
+                                                  3'b001 ;
+   assign nzp_data_B = $signed(o_result_B) < 0 ? 3'b100  :
+                       $signed(o_result_B) == 0 ? 3'b010 :
+                                                  3'b001 ;
+
    wire  reg_M_A_o_nzp_we, reg_M_A_o_is_load, reg_M_A_o_is_store, reg_M_A_o_is_cntl, reg_M_A_o_regfile_we;
    wire [1:0] reg_M_A_o_stall;
    wire [2:0] reg_M_A_o_regfile_wsel, reg_M_A_o_regfile_r2sel, reg_M_A_o_nzp_data;
    wire [15:0] reg_M_A_o_insn, reg_M_A_o_pc, reg_M_A_o_alu_output, reg_M_A_o_r2data;
 
-   pipe_reg_M_A reg_M_A(
+   pipe_reg_M reg_M_A(
       .clk(clk),
       .we(1'b1),
       .gwe(gwe),
@@ -445,8 +513,8 @@ module lc4_processor(input wire         clk,             // main clock
       .i_insn(reg_X_A_o_insn),
       .i_pc(reg_X_A_o_pc),
       .i_stall(reg_X_A_o_stall),
-      .i_alu_output(o_result), // TODO
-      .i_r2data(i_r2data), // TODO
+      .i_alu_output(o_result_A), 
+      .i_r2data(reg_X_A_o_r2data),
       .i_nzp_we(reg_X_A_o_nzp_we),
       .i_is_load(reg_X_A_o_is_load),
       .i_is_store(reg_X_A_o_is_store),
@@ -454,7 +522,7 @@ module lc4_processor(input wire         clk,             // main clock
       .i_regfile_we(reg_X_A_o_regfile_we),
       .i_regfile_wsel(reg_X_A_o_regfile_wsel),
       .i_regfile_r2sel(reg_X_A_o_regfile_r2sel),
-      .i_nzp_data(nzp_data), // TODO
+      .i_nzp_data(nzp_data_A),
       .o_insn(reg_M_A_o_insn),
       .o_pc(reg_M_A_o_pc),
       .o_stall(reg_M_A_o_stall),
@@ -475,7 +543,7 @@ module lc4_processor(input wire         clk,             // main clock
    wire [2:0] reg_M_B_o_regfile_wsel, reg_M_B_o_regfile_r2sel, reg_M_B_o_nzp_data;
    wire [15:0] reg_M_B_o_insn, reg_M_B_o_pc, reg_M_B_o_alu_output, reg_M_B_o_r2data;
 
-   pipe_reg_M_B reg_M_B(
+   pipe_reg_M reg_M_B(
       .clk(clk),
       .we(1'b1),
       .gwe(gwe),
@@ -483,8 +551,8 @@ module lc4_processor(input wire         clk,             // main clock
       .i_insn(reg_X_B_o_insn),
       .i_pc(reg_X_B_o_pc),
       .i_stall(reg_X_B_o_stall),
-      .i_alu_output(o_result), // TODO
-      .i_r2data(i_r2data), // TODO
+      .i_alu_output(o_result_B),
+      .i_r2data(reg_X_B_o_r2data),
       .i_nzp_we(reg_X_B_o_nzp_we),
       .i_is_load(reg_X_B_o_is_load),
       .i_is_store(reg_X_B_o_is_store),
@@ -492,7 +560,7 @@ module lc4_processor(input wire         clk,             // main clock
       .i_regfile_we(reg_X_B_o_regfile_we),
       .i_regfile_wsel(reg_X_B_o_regfile_wsel),
       .i_regfile_r2sel(reg_X_B_o_regfile_r2sel),
-      .i_nzp_data(nzp_data), // TODO
+      .i_nzp_data(nzp_data_B),
       .o_insn(reg_M_B_o_insn),
       .o_pc(reg_M_B_o_pc),
       .o_stall(reg_M_B_o_stall),
@@ -515,7 +583,7 @@ module lc4_processor(input wire         clk,             // main clock
    wire [2:0] reg_W_A_o_nzp_data, reg_W_A_o_regfile_wsel;
    wire [15:0] reg_W_A_o_insn, reg_W_A_o_pc, reg_W_A_o_alu_output, reg_W_A_o_dmem_loaded_data, reg_W_A_o_dmem_towrite;
 
-   pipe_reg_W_A reg_W_A(
+   pipe_reg_W reg_W_A(
       .clk(clk),
       .we(1'b1),
       .gwe(gwe),
@@ -552,7 +620,7 @@ module lc4_processor(input wire         clk,             // main clock
    wire [2:0] reg_W_B_o_nzp_data, reg_W_B_o_regfile_wsel;
    wire [15:0] reg_W_B_o_insn, reg_W_B_o_pc, reg_W_B_o_alu_output, reg_W_B_o_dmem_loaded_data, reg_W_B_o_dmem_towrite;
 
-   pipe_reg_W_B reg_W_B(
+   pipe_reg_W reg_W_B(
       .clk(clk),
       .we(1'b1),
       .gwe(gwe),
@@ -584,6 +652,71 @@ module lc4_processor(input wire         clk,             // main clock
       .o_regfile_we(reg_W_B_o_regfile_we),
       .o_regfile_wsel(reg_W_B_o_regfile_wsel));
 
+      // Initialize W-F wrap-around split
+      wire [15:0] pc2_wrap_A;
+      cla16 pc2_wrap_cla_A(
+         .a(reg_W_A_o_pc),
+         .b(16'b0),
+         .cin(1'b1),
+         .sum(pc2_wrap_A)
+      );
+      wire [15:0] pc2_wrap_B;
+      cla16 pc2_wrap_cla_B(
+         .a(reg_W_B_o_pc),
+         .b(16'b0),
+         .cin(1'b1),
+         .sum(pc2_wrap_B)
+      );
+
+      wire [15:0] writeback_data_A, writeback_data_B;
+      assign writeback_data_A = reg_W_A_o_is_load ? reg_W_A_o_dmem_loaded_data :
+                                reg_W_A_o_is_cntl ? pc2_wrap_A                 :
+                                                    reg_W_A_o_alu_output       ;
+      assign writeback_data_B = reg_W_B_o_is_load ? reg_W_B_o_dmem_loaded_data :
+                                reg_W_B_o_is_cntl ? pc2_wrap_B                 :
+                                                    reg_W_B_o_alu_output       ;
+
+      wire [2:0] wrap_nzp_data_A, wrap_nzp_data_B;
+      assign wrap_nzp_data_A = $signed(writeback_data_A) <  0 ? 3'b100 :
+                               $signed(writeback_data_A) == 0 ? 3'b010 :
+                                                                3'b001 ;
+      assign wrap_nzp_data_B = $signed(writeback_data_B) <  0 ? 3'b100 :
+                               $signed(writeback_data_B) == 0 ? 3'b010 :
+                                                                3'b001 ;
+
+      // Wire up writeback
+      assign i_rd_A = reg_W_A_o_regfile_wsel;
+      assign i_wdata_A = writeback_data_A;
+      assign i_rd_we_A = reg_W_A_o_regfile_we;
+
+      assign i_rd_B = reg_W_B_o_regfile_wsel;
+      assign i_wdata_B = writeback_data_B;
+      assign i_rd_we_B = reg_W_B_o_regfile_we;
+
+      assign test_stall_A = reg_W_A_o_stall;        // is this a stall cycle?  (0: no stall,
+      assign test_stall_B = reg_W_B_o_stall;        // 1: pipeline stall, 2: branch stall, 3: load stall)
+
+      assign test_cur_pc_A = reg_W_A_o_pc;       // program counter
+      assign test_cur_pc_B = reg_W_B_o_pc;
+      assign test_cur_insn_A = reg_W_A_o_insn;     // instruction bits
+      assign test_cur_insn_B = reg_W_B_o_insn;
+      assign test_regfile_we_A = reg_W_A_o_regfile_we;   // register file write-enable
+      assign test_regfile_we_B = reg_W_B_o_regfile_we;
+      assign test_regfile_wsel_A = reg_W_A_o_regfile_wsel; // which register to write
+      assign test_regfile_wsel_B = reg_W_B_o_regfile_wsel;
+      assign test_regfile_data_A = writeback_data_A;  // data to write to register file
+      assign test_regfile_data_B = writeback_data_B; 
+      assign test_nzp_we_A = reg_W_A_o_nzp_we;       // nzp register write enable
+      assign test_nzp_we_B = reg_W_B_o_nzp_we;
+      assign test_nzp_new_bits_A = wrap_nzp_data_A; // new nzp bits
+      assign test_nzp_new_bits_B = wrap_nzp_data_B;
+      assign test_dmem_we_A = reg_W_A_o_is_load | reg_W_A_o_is_store;      // data memory write enable
+      assign test_dmem_we_B = reg_W_B_o_is_load | reg_W_B_o_is_store;
+      assign test_dmem_addr_A = reg_W_A_o_is_store | reg_W_A_o_is_load ? reg_W_A_o_alu_output : 16'b0;    // address to read/write from/to memory
+      assign test_dmem_addr_B = reg_W_B_o_is_store | reg_W_B_o_is_load ? reg_W_B_o_alu_output : 16'b0;
+      assign test_dmem_data_A = reg_W_A_o_is_load ? reg_W_A_o_dmem_loaded_data : reg_W_A_o_is_store ? reg_W_A_o_alu_output : 16'b0;   // data to read/write from/to memory
+      assign test_dmem_data_B = reg_W_B_o_is_load ? reg_W_B_o_dmem_loaded_data : reg_W_B_o_is_store ? reg_W_B_o_alu_output : 16'b0;
+
 
    /* Add $display(...) calls in the always block below to
     * print out debug information at the end of every cycle.
@@ -595,6 +728,105 @@ module lc4_processor(input wire         clk,             // main clock
       // $display("%d %h %h %h %h %h", $time, f_pc, d_pc, e_pc, m_pc, test_cur_pc);
       // if (o_dmem_we)
       //   $display("%d STORE %h <= %h", $time, o_dmem_addr, o_dmem_towrite);
+
+      $display("PC: %h", pc);
+      $display("Next PC: %h", next_pc);
+      $display("stall_A: %d, stall_B: %d", reg_W_A_o_stall, reg_W_B_o_stall);
+      $display("F -> PC: %h", pc);
+      $display("D_A -> PC: %h, INSN: %h, stall: %d, r1_sel: %d, r2_sel: %d, wsel: %d, we: %d, do_pipe_switch: %b",
+         reg_D_A_o_pc,
+         reg_D_A_o_insn,
+         reg_D_A_o_stall,
+         r1sel_A,
+         r2sel_A,
+         wsel_A,
+         regfile_we_A,
+         do_pipe_switch);
+      $display("D_B -> PC: %h, INSN: %h, stall: %d, r1_sel: %d, r2_sel: %d, wsel: %d, we: %d, do_pipe_switch: %b",
+         reg_D_B_o_pc,
+         reg_D_B_o_insn,
+         reg_D_B_o_stall,
+         r1sel_B,
+         r2sel_B,
+         wsel_B,
+         regfile_we_B,
+         do_pipe_switch);
+      $display("X_A -> PC: %h, INSN: %h, stall: %d, r1_data: %h, alu_r1: %h, r1_sel: %d, r2_data: %h, alu_r2: %h, r2_sel: %d, w_sel: %d",
+         reg_X_A_o_pc,
+         reg_X_A_o_insn,
+         reg_X_A_o_stall,
+         reg_X_A_o_r1data,
+         alu_A_r1data,
+         reg_X_A_o_regfile_r1sel,
+         reg_X_A_o_r2data,
+         alu_A_r2data,
+         reg_X_A_o_regfile_r2sel,
+         reg_X_A_o_regfile_wsel
+      );
+      $display("X_B -> PC: %h, INSN: %h, stall: %d, r1_data: %h, alu_r1: %h, r1_sel: %d, r2_data: %h, alu_r2: %h, r2_sel: %d, w_sel: %d",
+         reg_X_B_o_pc,
+         reg_X_B_o_insn,
+         reg_X_B_o_stall,
+         reg_X_B_o_r1data,
+         alu_B_r1data,
+         reg_X_B_o_regfile_r1sel,
+         reg_X_B_o_r2data,
+         alu_B_r2data,
+         reg_X_B_o_regfile_r2sel,
+         reg_X_B_o_regfile_wsel,
+      );
+      $display("MA_XA_bypass_r1: %b, MA_XA_bypass_r2: %b, MB_XA_bypass_r1: %b, MB_XA_bypass_r2: %b, MA_XB_bypass_r1: %b, MA_XB_bypass_r2: %b, MB_XB_bypass_r1: %b, MB_XB_bypass_r2: %b, WA_XA_bypass_r1: %b, WA_XA_bypass_r2: %b, WB_XA_bypass_r1: %b, WB_XA_bypass_r2: %b, WA_XB_bypass_r1: %b, WA_XB_bypass_r2: %b, WB_XB_bypass_r1: %b, WB_XB_bypass_r2: %b",
+         MA_XA_bypass_r1,
+         MA_XA_bypass_r2,
+         MB_XA_bypass_r1,
+         MB_XA_bypass_r2,
+         MA_XB_bypass_r1,
+         MA_XB_bypass_r2,
+         MB_XB_bypass_r1,
+         MB_XB_bypass_r2,
+         WA_XA_bypass_r1,
+         WA_XA_bypass_r2,
+         WB_XA_bypass_r1,
+         WB_XA_bypass_r2,
+         WA_XB_bypass_r1,
+         WA_XB_bypass_r2,
+         WB_XB_bypass_r1,
+         WB_XB_bypass_r2
+      );
+      $display("M_A -> PC: %h, INSN: %h, stall: %d, alu_out: %h, w_sel: %d, w_we: %b",
+         reg_M_A_o_pc,
+         reg_M_A_o_insn,
+         reg_M_A_o_stall,
+         reg_M_A_o_alu_output,
+         reg_M_A_o_regfile_wsel,
+         reg_M_A_o_regfile_we
+      );
+      $display("M_B -> PC: %h, INSN: %h, stall: %d, alu_out: %h, w_sel: %d, w_we: %b",
+         reg_M_B_o_pc,
+         reg_M_B_o_insn,
+         reg_M_B_o_stall,
+         reg_M_B_o_alu_output,
+         reg_M_B_o_regfile_wsel,
+         reg_M_B_o_regfile_we,
+      );
+      $display("W_A -> PC: %h, INSN: %h, stall: %d, writeback_data: %h, writeback_we: %b, w_sel: %d",
+         reg_W_A_o_pc,
+         reg_W_A_o_insn,
+         reg_W_A_o_stall,
+         writeback_data_A,
+         i_rd_we_A,
+         i_rd_A
+      );
+      $display("W_B -> PC: %h, INSN: %h, stall: %d, writeback_data: %h, writeback_we: %b, w_sel: %d",
+         reg_W_B_o_pc,
+         reg_W_B_o_insn,
+         reg_W_B_o_stall,
+         writeback_data_B,
+         i_rd_we_B,
+         i_rd_B,
+      );
+
+      $display("\n");
 
       // Start each $display() format string with a %d argument for time
       // it will make the output easier to read.  Use %b, %h, and %d
