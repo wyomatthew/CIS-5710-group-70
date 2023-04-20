@@ -372,10 +372,10 @@ module lc4_processor(input wire         clk,             // main clock
       (nzp_we_A & is_branch_B) |
       memory_overload); // only B stalls
 
-   wire load_to_use_XA_DA = reg_X_A_o_is_load & reg_X_A_o_stall == 2'b0 & ((reg_X_A_o_regfile_wsel == r1sel_A & r1re_A) | (reg_X_A_o_regfile_wsel == r2sel_A & r2re_A & ~is_store_A)) & ((reg_X_A_o_regfile_wsel != reg_X_B_o_regfile_wsel | ~reg_X_B_o_regfile_we ) | reg_X_B_o_stall != 2'b0);
-   wire load_to_use_XB_DA = reg_X_B_o_is_load & reg_X_B_o_stall == 2'b0 & ((reg_X_B_o_regfile_wsel == r1sel_A & r1re_A) | (reg_X_B_o_regfile_wsel == r2sel_A & r2re_A & ~is_store_A));
-   wire load_to_use_XA_DB = reg_X_A_o_is_load & reg_X_A_o_stall == 2'b0 & ((reg_X_A_o_regfile_wsel == r1sel_B & r1re_B) | (reg_X_A_o_regfile_wsel == r2sel_B & r2re_B & ~is_store_B)) & (reg_X_A_o_regfile_wsel != reg_X_B_o_regfile_wsel | ~reg_X_B_o_regfile_we);
-   wire load_to_use_XB_DB = reg_X_B_o_is_load & reg_X_B_o_stall == 2'b0 & ((reg_X_B_o_regfile_wsel == r1sel_B & r1re_B) | (reg_X_B_o_regfile_wsel == r2sel_B & r2re_B & ~is_store_B));
+   wire load_to_use_XA_DA = reg_X_A_o_is_load & reg_X_A_o_stall == 2'b0 & ((reg_X_A_o_regfile_wsel == r1sel_A & r1re_A) | (reg_X_A_o_regfile_wsel == r2sel_A & r2re_A & ~is_store_A) | (is_branch_A & ~reg_X_B_o_nzp_we)) & ((reg_X_A_o_regfile_wsel != reg_X_B_o_regfile_wsel | ~reg_X_B_o_regfile_we ) | reg_X_B_o_stall != 2'b0);
+   wire load_to_use_XB_DA = reg_X_B_o_is_load & reg_X_B_o_stall == 2'b0 & ((reg_X_B_o_regfile_wsel == r1sel_A & r1re_A) | (reg_X_B_o_regfile_wsel == r2sel_A & r2re_A & ~is_store_A) | is_branch_A);
+   wire load_to_use_XA_DB = reg_X_A_o_is_load & reg_X_A_o_stall == 2'b0 & ((reg_X_A_o_regfile_wsel == r1sel_B & r1re_B) | (reg_X_A_o_regfile_wsel == r2sel_B & r2re_B & ~is_store_B) | (is_branch_B & ~reg_X_B_o_nzp_we)) & (reg_X_A_o_regfile_wsel != reg_X_B_o_regfile_wsel | ~reg_X_B_o_regfile_we);
+   wire load_to_use_XB_DB = reg_X_B_o_is_load & reg_X_B_o_stall == 2'b0 & ((reg_X_B_o_regfile_wsel == r1sel_B & r1re_B) | (reg_X_B_o_regfile_wsel == r2sel_B & r2re_B & ~is_store_B) | is_branch_B);
    wire load_to_use_A = load_to_use_XA_DA | load_to_use_XB_DA;
    wire load_to_use_B = load_to_use_XA_DB | load_to_use_XB_DB;
 
@@ -829,126 +829,126 @@ module lc4_processor(input wire         clk,             // main clock
       // if (o_dmem_we)
       //   $display("%d STORE %h <= %h", $time, o_dmem_addr, o_dmem_towrite);
 
-      $display("PC: %h", pc);
-      $display("Next PC: %h", next_pc);
-      $display("stall_A: %d, stall_B: %d", reg_W_A_o_stall, reg_W_B_o_stall);
-      $display("F -> PC: %h", pc);
-      $display("D_A -> PC: %h, INSN: %h, stall: %d, r1_sel: %d, r2_sel: %d, wsel: %d, we: %d, do_pipe_switch: %b, r1re: %b, r2re: %b",
-         reg_D_A_o_pc,
-         reg_D_A_o_insn,
-         reg_X_A_i_stall,
-         r1sel_A,
-         r2sel_A,
-         wsel_A,
-         regfile_we_A,
-         do_pipe_switch,
-         r1re_A,
-         r2re_A);
-      $display("D_B -> PC: %h, INSN: %h, stall: %d, r1_sel: %d, r2_sel: %d, wsel: %d, we: %d, do_pipe_switch: %b, r1re: %b, r2re: %b",
-         reg_D_B_o_pc,
-         reg_D_B_o_insn,
-         reg_X_B_i_stall,
-         r1sel_B,
-         r2sel_B,
-         wsel_B,
-         regfile_we_B,
-         do_pipe_switch,
-         r1re_B,
-         r2re_B);
-      $display("X_A -> PC: %h, INSN: %h, stall: %d, r1_data: %h, alu_r1: %h, r1_sel: %d, r2_data: %h, alu_r2: %h, r2_sel: %d, w_sel: %d, take_branch: %b, nzp_we: %b, nzp_data: %b, branch_nzp_data: %b",
-         reg_X_A_o_pc,
-         reg_X_A_o_insn,
-         reg_X_A_o_stall,
-         reg_X_A_o_r1data,
-         alu_A_r1data,
-         reg_X_A_o_regfile_r1sel,
-         reg_X_A_o_r2data,
-         alu_A_r2data,
-         reg_X_A_o_regfile_r2sel,
-         reg_X_A_o_regfile_wsel,
-         take_branch_A,
-         reg_X_A_o_nzp_we,
-         nzp_data_A,
-         branch_controller_o_nzp_A
-      );
-      $display("X_B -> PC: %h, INSN: %h, stall: %d, r1_data: %h, alu_r1: %h, r1_sel: %d, r2_data: %h, alu_r2: %h, r2_sel: %d, w_sel: %d, take_branch: %b, nzp_we: %b, nzp_data: %b, branch_nzp_data: %b",
-         reg_X_B_o_pc,
-         reg_X_B_o_insn,
-         reg_X_B_o_stall,
-         reg_X_B_o_r1data,
-         alu_B_r1data,
-         reg_X_B_o_regfile_r1sel,
-         reg_X_B_o_r2data,
-         alu_B_r2data,
-         reg_X_B_o_regfile_r2sel,
-         reg_X_B_o_regfile_wsel,
-         take_branch_B,
-         reg_X_B_o_nzp_we,
-         nzp_data_B,
-         branch_controller_o_nzp_B
-      );
-      $display("MA_XA_bypass_r1: %b, MA_XA_bypass_r2: %b, MB_XA_bypass_r1: %b, MB_XA_bypass_r2: %b, MA_XB_bypass_r1: %b, MA_XB_bypass_r2: %b, MB_XB_bypass_r1: %b, MB_XB_bypass_r2: %b, WA_XA_bypass_r1: %b, WA_XA_bypass_r2: %b, WB_XA_bypass_r1: %b, WB_XA_bypass_r2: %b, WA_XB_bypass_r1: %b, WA_XB_bypass_r2: %b, WB_XB_bypass_r1: %b, WB_XB_bypass_r2: %b",
-         MA_XA_bypass_r1,
-         MA_XA_bypass_r2,
-         MB_XA_bypass_r1,
-         MB_XA_bypass_r2,
-         MA_XB_bypass_r1,
-         MA_XB_bypass_r2,
-         MB_XB_bypass_r1,
-         MB_XB_bypass_r2,
-         WA_XA_bypass_r1,
-         WA_XA_bypass_r2,
-         WB_XA_bypass_r1,
-         WB_XA_bypass_r2,
-         WA_XB_bypass_r1,
-         WA_XB_bypass_r2,
-         WB_XB_bypass_r1,
-         WB_XB_bypass_r2
-      );
-      $display("M_A -> PC: %h, INSN: %h, stall: %d, alu_out: %h, w_sel: %d, w_we: %b, nzp_we: %b, nzp_data: %b, i_cur_dmem_data: %h",
-         reg_M_A_o_pc,
-         reg_M_A_o_insn,
-         reg_M_A_o_stall,
-         reg_M_A_o_alu_output,
-         reg_M_A_o_regfile_wsel,
-         reg_M_A_o_regfile_we,
-         reg_M_A_o_nzp_we,
-         reg_M_A_o_nzp_data,
-         i_cur_dmem_data
-      );
-      $display("M_B -> PC: %h, INSN: %h, stall: %d, alu_out: %h, w_sel: %d, w_we: %b, nzp_we: %b, nzp_data: %b, i_cur_dmem_data: %h",
-         reg_M_B_o_pc,
-         reg_M_B_o_insn,
-         reg_M_B_o_stall,
-         reg_M_B_o_alu_output,
-         reg_M_B_o_regfile_wsel,
-         reg_M_B_o_regfile_we,
-         reg_M_B_o_nzp_we,
-         reg_M_B_o_nzp_data,
-         i_cur_dmem_data
-      );
-      $display("W_A -> PC: %h, INSN: %h, stall: %d, writeback_data: %h, writeback_we: %b, w_sel: %d, nzp_we: %b, nzp_data: %b",
-         reg_W_A_o_pc,
-         reg_W_A_o_insn,
-         reg_W_A_o_stall,
-         writeback_data_A,
-         i_rd_we_A,
-         i_rd_A,
-         reg_W_A_o_nzp_we,
-         wrap_nzp_data_A
-      );
-      $display("W_B -> PC: %h, INSN: %h, stall: %d, writeback_data: %h, writeback_we: %b, w_sel: %d, nzp_we: %b, nzp_data: %b",
-         reg_W_B_o_pc,
-         reg_W_B_o_insn,
-         reg_W_B_o_stall,
-         writeback_data_B,
-         i_rd_we_B,
-         i_rd_B,
-         reg_W_B_o_nzp_we,
-         wrap_nzp_data_B
-      );
+      // $display("PC: %h", pc);
+      // $display("Next PC: %h", next_pc);
+      // $display("stall_A: %d, stall_B: %d", reg_W_A_o_stall, reg_W_B_o_stall);
+      // $display("F -> PC: %h", pc);
+      // $display("D_A -> PC: %h, INSN: %h, stall: %d, r1_sel: %d, r2_sel: %d, wsel: %d, we: %d, do_pipe_switch: %b, r1re: %b, r2re: %b",
+      //    reg_D_A_o_pc,
+      //    reg_D_A_o_insn,
+      //    reg_X_A_i_stall,
+      //    r1sel_A,
+      //    r2sel_A,
+      //    wsel_A,
+      //    regfile_we_A,
+      //    do_pipe_switch,
+      //    r1re_A,
+      //    r2re_A);
+      // $display("D_B -> PC: %h, INSN: %h, stall: %d, r1_sel: %d, r2_sel: %d, wsel: %d, we: %d, do_pipe_switch: %b, r1re: %b, r2re: %b",
+      //    reg_D_B_o_pc,
+      //    reg_D_B_o_insn,
+      //    reg_X_B_i_stall,
+      //    r1sel_B,
+      //    r2sel_B,
+      //    wsel_B,
+      //    regfile_we_B,
+      //    do_pipe_switch,
+      //    r1re_B,
+      //    r2re_B);
+      // $display("X_A -> PC: %h, INSN: %h, stall: %d, r1_data: %h, alu_r1: %h, r1_sel: %d, r2_data: %h, alu_r2: %h, r2_sel: %d, w_sel: %d, take_branch: %b, nzp_we: %b, nzp_data: %b, branch_nzp_data: %b",
+      //    reg_X_A_o_pc,
+      //    reg_X_A_o_insn,
+      //    reg_X_A_o_stall,
+      //    reg_X_A_o_r1data,
+      //    alu_A_r1data,
+      //    reg_X_A_o_regfile_r1sel,
+      //    reg_X_A_o_r2data,
+      //    alu_A_r2data,
+      //    reg_X_A_o_regfile_r2sel,
+      //    reg_X_A_o_regfile_wsel,
+      //    take_branch_A,
+      //    reg_X_A_o_nzp_we,
+      //    nzp_data_A,
+      //    branch_controller_o_nzp_A
+      // );
+      // $display("X_B -> PC: %h, INSN: %h, stall: %d, r1_data: %h, alu_r1: %h, r1_sel: %d, r2_data: %h, alu_r2: %h, r2_sel: %d, w_sel: %d, take_branch: %b, nzp_we: %b, nzp_data: %b, branch_nzp_data: %b",
+      //    reg_X_B_o_pc,
+      //    reg_X_B_o_insn,
+      //    reg_X_B_o_stall,
+      //    reg_X_B_o_r1data,
+      //    alu_B_r1data,
+      //    reg_X_B_o_regfile_r1sel,
+      //    reg_X_B_o_r2data,
+      //    alu_B_r2data,
+      //    reg_X_B_o_regfile_r2sel,
+      //    reg_X_B_o_regfile_wsel,
+      //    take_branch_B,
+      //    reg_X_B_o_nzp_we,
+      //    nzp_data_B,
+      //    branch_controller_o_nzp_B
+      // );
+      // $display("MA_XA_bypass_r1: %b, MA_XA_bypass_r2: %b, MB_XA_bypass_r1: %b, MB_XA_bypass_r2: %b, MA_XB_bypass_r1: %b, MA_XB_bypass_r2: %b, MB_XB_bypass_r1: %b, MB_XB_bypass_r2: %b, WA_XA_bypass_r1: %b, WA_XA_bypass_r2: %b, WB_XA_bypass_r1: %b, WB_XA_bypass_r2: %b, WA_XB_bypass_r1: %b, WA_XB_bypass_r2: %b, WB_XB_bypass_r1: %b, WB_XB_bypass_r2: %b",
+      //    MA_XA_bypass_r1,
+      //    MA_XA_bypass_r2,
+      //    MB_XA_bypass_r1,
+      //    MB_XA_bypass_r2,
+      //    MA_XB_bypass_r1,
+      //    MA_XB_bypass_r2,
+      //    MB_XB_bypass_r1,
+      //    MB_XB_bypass_r2,
+      //    WA_XA_bypass_r1,
+      //    WA_XA_bypass_r2,
+      //    WB_XA_bypass_r1,
+      //    WB_XA_bypass_r2,
+      //    WA_XB_bypass_r1,
+      //    WA_XB_bypass_r2,
+      //    WB_XB_bypass_r1,
+      //    WB_XB_bypass_r2
+      // );
+      // $display("M_A -> PC: %h, INSN: %h, stall: %d, alu_out: %h, w_sel: %d, w_we: %b, nzp_we: %b, nzp_data: %b, i_cur_dmem_data: %h",
+      //    reg_M_A_o_pc,
+      //    reg_M_A_o_insn,
+      //    reg_M_A_o_stall,
+      //    reg_M_A_o_alu_output,
+      //    reg_M_A_o_regfile_wsel,
+      //    reg_M_A_o_regfile_we,
+      //    reg_M_A_o_nzp_we,
+      //    reg_M_A_o_nzp_data,
+      //    i_cur_dmem_data
+      // );
+      // $display("M_B -> PC: %h, INSN: %h, stall: %d, alu_out: %h, w_sel: %d, w_we: %b, nzp_we: %b, nzp_data: %b, i_cur_dmem_data: %h",
+      //    reg_M_B_o_pc,
+      //    reg_M_B_o_insn,
+      //    reg_M_B_o_stall,
+      //    reg_M_B_o_alu_output,
+      //    reg_M_B_o_regfile_wsel,
+      //    reg_M_B_o_regfile_we,
+      //    reg_M_B_o_nzp_we,
+      //    reg_M_B_o_nzp_data,
+      //    i_cur_dmem_data
+      // );
+      // $display("W_A -> PC: %h, INSN: %h, stall: %d, writeback_data: %h, writeback_we: %b, w_sel: %d, nzp_we: %b, nzp_data: %b",
+      //    reg_W_A_o_pc,
+      //    reg_W_A_o_insn,
+      //    reg_W_A_o_stall,
+      //    writeback_data_A,
+      //    i_rd_we_A,
+      //    i_rd_A,
+      //    reg_W_A_o_nzp_we,
+      //    wrap_nzp_data_A
+      // );
+      // $display("W_B -> PC: %h, INSN: %h, stall: %d, writeback_data: %h, writeback_we: %b, w_sel: %d, nzp_we: %b, nzp_data: %b",
+      //    reg_W_B_o_pc,
+      //    reg_W_B_o_insn,
+      //    reg_W_B_o_stall,
+      //    writeback_data_B,
+      //    i_rd_we_B,
+      //    i_rd_B,
+      //    reg_W_B_o_nzp_we,
+      //    wrap_nzp_data_B
+      // );
 
-      $display("\n");
+      // $display("\n");
 
       // Start each $display() format string with a %d argument for time
       // it will make the output easier to read.  Use %b, %h, and %d
